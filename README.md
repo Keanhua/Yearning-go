@@ -9,10 +9,6 @@
 
 ##### MYSQL web端 SQL审核平台。
 
-## Version 版本
-
-Yearning for Golang v2.0.0
-
 ## Yearning2.0 前端项目 
 
 [Gemini](https://github.com/cookieY/Gemini)
