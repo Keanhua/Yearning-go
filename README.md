@@ -13,8 +13,6 @@
 
 Yearning for Golang v2.0.0
 
-Yearning for Python v1.4.7
-
 ## Yearning2.0 前端项目 
 
 [Gemini](https://github.com/cookieY/Gemini)
@@ -25,8 +23,6 @@ Yearning for Python v1.4.7
 
 
 ## Community 社区
-   Yearning 使用与交流          Q群: 103674679
-   
    Yearning2.0(Go) 使用交流     Q群: 747364310
 ## Feature 功能
 
