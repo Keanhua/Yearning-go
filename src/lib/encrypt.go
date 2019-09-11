@@ -14,13 +14,14 @@
 package lib
 
 import (
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/base64"
 	"golang.org/x/crypto/pbkdf2"
+	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -48,7 +49,7 @@ func DjangoEncrypt(password string, sl string) string {
 	return "pbkdf2_sha256" + "$" + strconv.FormatInt(int64(iterations), 10) + "$" + string(salt) + "$" + str
 }
 
-func DjangoCheckPassword(account *modal.CoreAccount, password string) bool {
+func DjangoCheckPassword(account *model.CoreAccount, password string) bool {
 	sl := strings.Split(account.Password, "$")[2]
 	checkPasswordToken := DjangoEncrypt(password, sl)
 	if account.Password == checkPasswordToken {
@@ -58,12 +59,12 @@ func DjangoCheckPassword(account *modal.CoreAccount, password string) bool {
 	}
 }
 
-func  Encrypt(p string) string {
+func Encrypt(p string) string {
 
-	if len(modal.JWT) == 16 {
+	if len(model.JWT) == 16 {
 		// 转成字节数组
 		origData := []byte(p)
-		k := []byte(modal.JWT)
+		k := []byte(model.JWT)
 		// 分组秘钥
 		block, _ := aes.NewCipher(k)
 		// 获取秘钥块的长度
@@ -85,7 +86,7 @@ func  Encrypt(p string) string {
 func Decrypt(cryted string) string {
 	// 转成字节数组
 	crytedByte, _ := base64.StdEncoding.DecodeString(cryted)
-	k := []byte(modal.JWT)
+	k := []byte(model.JWT)
 
 	// 分组秘钥
 	block, _ := aes.NewCipher(k)
@@ -99,6 +100,10 @@ func Decrypt(cryted string) string {
 	blockMode.CryptBlocks(orig, crytedByte)
 	// 去补全码
 	orig = PKCS7UnPadding(orig)
+	if orig == nil {
+		log.Println("无法获得传入密码")
+		return ""
+	}
 	return string(orig)
 }
 
@@ -111,7 +116,10 @@ func PKCS7Padding(ciphertext []byte, blocksize int) []byte {
 
 //去码
 func PKCS7UnPadding(origData []byte) []byte {
-	length := len(origData)
-	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
+	if len(origData) > 0 {
+		length := len(origData)
+		unpadding := int(origData[length-1])
+		return origData[:(length - unpadding)]
+	}
+	return nil
 }

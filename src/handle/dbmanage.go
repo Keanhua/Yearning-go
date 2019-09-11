@@ -15,25 +15,26 @@ package handle
 
 import (
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	"encoding/json"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo/v4"
+	"log"
 	"net/http"
+	"net/url"
 )
 
 type fetchdb struct {
 	ComputerRoom   string `json:"computer_room"`
 	ConnectionName string `json:"connection_name"`
 	Valve          bool   `json:"valve"`
-	IsQuery        int    `json:"isQuery"`
 	Username       string `json:"username"`
 }
 
 type gr struct {
 	Page   int                    `json:"page"`
-	Data   []modal.CoreDataSource `json:"data"`
+	Data   []model.CoreDataSource `json:"data"`
 	Custom []string               `json:"custom"`
 }
 
@@ -62,7 +63,7 @@ type editDb struct {
 func SuperFetchDB(c echo.Context) (err error) {
 
 	var f fetchdb
-	var u []modal.CoreDataSource
+	var u []model.CoreDataSource
 	var pg int
 	con := c.QueryParam("con")
 	if err := json.Unmarshal([]byte(con), &f); err != nil {
@@ -71,37 +72,37 @@ func SuperFetchDB(c echo.Context) (err error) {
 	start, end := lib.Paging(c.QueryParam("page"), 10)
 
 	if f.Valve {
-		modal.DB().Model(modal.CoreDataSource{}).Where("id_c LIKE ? and source LIKE ? and is_query = ?", "%"+fmt.Sprintf("%s", f.ComputerRoom)+"%", "%"+fmt.Sprintf("%s", f.ConnectionName)+"%", f.IsQuery).Count(&pg)
-		modal.DB().Model(modal.CoreDataSource{}).Where("id_c LIKE ? and source LIKE ? and is_query = ?", "%"+fmt.Sprintf("%s", f.ComputerRoom)+"%", "%"+fmt.Sprintf("%s", f.ConnectionName)+"%", f.IsQuery).Offset(start).Limit(end).Find(&u)
+		model.DB().Model(model.CoreDataSource{}).Where("id_c LIKE ? and source LIKE ?", "%"+fmt.Sprintf("%s", f.ComputerRoom)+"%", "%"+fmt.Sprintf("%s", f.ConnectionName)+"%").Count(&pg)
+		model.DB().Model(model.CoreDataSource{}).Where("id_c LIKE ? and source LIKE ?", "%"+fmt.Sprintf("%s", f.ComputerRoom)+"%", "%"+fmt.Sprintf("%s", f.ConnectionName)+"%").Order("id desc").Offset(start).Limit(end).Find(&u)
 	} else {
-		modal.DB().Offset(start).Limit(end).Find(&u)
-		modal.DB().Model(modal.CoreDataSource{}).Count(&pg)
+		model.DB().Order("id desc").Offset(start).Limit(end).Find(&u)
+		model.DB().Model(model.CoreDataSource{}).Count(&pg)
 	}
-	for idx, i := range u {
-		u[idx].Password = lib.Decrypt(i.Password)
+	for idx := range u {
+		u[idx].Password = "***********"
 	}
 
-	return c.JSON(http.StatusOK, gr{Page: pg, Data: u, Custom: modal.GloOther.IDC})
+	return c.JSON(http.StatusOK, gr{Page: pg, Data: u, Custom: model.GloOther.IDC})
 
 }
 
 func SuperAddDB(c echo.Context) (err error) {
 
-	var refer modal.CoreDataSource
+	var refer model.CoreDataSource
 
 	u := new(adddb)
 	if err = c.Bind(u); err != nil {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusInternalServerError, "")
 	}
-	modal.DB().Where("source =?", u.Source).First(&refer)
+	model.DB().Where("source =?", u.Source).First(&refer)
 
 	if refer.Source == "" {
 
 		x := lib.Encrypt(u.Password)
 
 		if x != "" {
-			modal.DB().Create(&modal.CoreDataSource{
+			model.DB().Create(&model.CoreDataSource{
 				IDC:      u.IDC,
 				Source:   u.Source,
 				Port:     u.Port,
@@ -121,21 +122,23 @@ func SuperAddDB(c echo.Context) (err error) {
 
 func SuperDeleteDb(c echo.Context) (err error) {
 
-	var g []modal.CoreGrained
+	var g []model.CoreGrained
 
-	tx := modal.DB().Begin()
+	tx := model.DB().Begin()
 
 	source := c.Param("source")
 
-	modal.DB().Find(&g)
+	unescape, _ := url.QueryUnescape(source)
 
-	if er := tx.Where("source =?", source).Delete(&modal.CoreDataSource{}).Error; er != nil {
+	model.DB().Find(&g)
+
+	if er := tx.Where("source =?", unescape).Delete(&model.CoreDataSource{}).Error; er != nil {
 		tx.Rollback()
 		c.Logger().Error(er.Error)
 		return c.JSON(http.StatusInternalServerError, "")
 	}
 	for _, i := range g {
-		var p modal.PermissionList
+		var p model.PermissionList
 		if err := json.Unmarshal(i.Permissions, &p); err != nil {
 			c.Logger().Error(err.Error())
 		}
@@ -143,7 +146,7 @@ func SuperDeleteDb(c echo.Context) (err error) {
 		p.DMLSource = lib.ResearchDel(p.DMLSource, source)
 		p.QuerySource = lib.ResearchDel(p.QuerySource, source)
 		r, _ := json.Marshal(p)
-		if e := tx.Model(&modal.CoreGrained{}).Where("id =?", i.ID).Update(modal.CoreGrained{Permissions: r}).Error; e != nil {
+		if e := tx.Model(&model.CoreGrained{}).Where("id =?", i.ID).Update(model.CoreGrained{Permissions: r}).Error; e != nil {
 			tx.Rollback()
 			c.Logger().Error(e.Error())
 		}
@@ -159,7 +162,13 @@ func SuperTestDBConnect(c echo.Context) (err error) {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusInternalServerError, "")
 	}
-	_, e := gorm.Open("mysql", fmt.Sprintf("%s:%s@(%s:%d)/?charset=utf8&parseTime=True&loc=Local", u.User, u.Password, u.Ip, u.Port))
+
+	db, e := gorm.Open("mysql", fmt.Sprintf("%s:%s@(%s:%d)/?charset=utf8&parseTime=True&loc=Local", u.User, u.Password, u.Ip, u.Port))
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println(err.Error())
+		}
+	}()
 	if e != nil {
 		c.Logger().Error(e.Error())
 		return c.JSON(http.StatusOK, "数据库实例连接失败！请检查相关配置是否正确！")
@@ -174,6 +183,6 @@ func SuperModifyDb(c echo.Context) (err error) {
 		return c.JSON(http.StatusInternalServerError, "")
 	}
 	x := lib.Encrypt(u.Data.Password)
-	modal.DB().Model(&modal.CoreDataSource{}).Where("source =?", u.Data.Source).Update(&modal.CoreDataSource{IP: u.Data.IP, Port: u.Data.Port, Username: u.Data.Username, Password: x})
+	model.DB().Model(&model.CoreDataSource{}).Where("source =?", u.Data.Source).Update(&model.CoreDataSource{IP: u.Data.IP, Port: u.Data.Port, Username: u.Data.Username, Password: x})
 	return c.JSON(http.StatusOK, "数据源信息已更新!")
 }

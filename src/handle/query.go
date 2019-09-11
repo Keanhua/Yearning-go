@@ -15,44 +15,16 @@ package handle
 
 import (
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
+	ser "Yearning-go/src/parser"
 	"encoding/json"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	data "sourcegraph.com/sourcegraph/appdash-data"
 	"time"
 )
-
-type FieldInfo struct {
-	gorm.Model
-
-	Field      string  `gorm:"Column:Field";json:"field"`
-	Type       string  `gorm:"Column:Type";json:"type"`
-	Collation  string  `gorm:"Column:Collation";json:"collation"`
-	Null       string  `gorm:"Column:Null";json:"null"`
-	Key        string  `gorm:"Column:Key";json:"key"`
-	Default    *string `gorm:"Column:Default";json:"default"`
-	Extra      string  `gorm:"Column:Extra";json:"extra"`
-	Privileges string  `gorm:"Column:Privileges";json:"privileges"`
-	Comment    string  `gorm:"Column:Comment";json:"comment"`
-
-	IsDeleted bool `gorm:"-"`
-	IsNew     bool `gorm:"-"`
-}
-
-type IndexInfo struct {
-	gorm.Model
-
-	Table      string `gorm:"Column:Table"`
-	NonUnique  int    `gorm:"Column:Non_unique"`
-	IndexName  string `gorm:"Column:Key_name"`
-	Seq        int    `gorm:"Column:Seq_in_index"`
-	ColumnName string `gorm:"Column:Column_name"`
-	IndexType  string `gorm:"Column:Index_type"`
-
-	IsDeleted bool `gorm:"-"`
-}
 
 type queryOrder struct {
 	IDC      string
@@ -68,8 +40,8 @@ type clearQueryOrder struct {
 }
 
 func ReferQueryOrder(c echo.Context) (err error) {
-	var u modal.CoreAccount
-	var t modal.CoreQueryOrder
+	var u model.CoreAccount
+	var t model.CoreQueryOrder
 	user, _ := lib.JwtParse(c)
 
 	d := new(queryOrder)
@@ -80,15 +52,15 @@ func ReferQueryOrder(c echo.Context) (err error) {
 
 	state := 1
 
-	if modal.GloOther.Query {
+	if model.GloOther.Query {
 		state = 2
 	}
 
-	modal.DB().Select("real_name").Where("username =?", user).First(&u)
+	model.DB().Select("real_name").Where("username =?", user).First(&u)
 
-	if modal.DB().Model(modal.CoreQueryOrder{}).Where("username =? and query_per =?", user, 2).First(&t).RecordNotFound() {
+	if model.DB().Model(model.CoreQueryOrder{}).Where("username =? and query_per =?", user, 2).First(&t).RecordNotFound() {
 		work := lib.GenWorkid()
-		modal.DB().Create(&modal.CoreQueryOrder{
+		model.DB().Create(&model.CoreQueryOrder{
 			WorkId:   work,
 			Username: user,
 			Date:     time.Now().Format("2006-01-02 15:04"),
@@ -96,7 +68,6 @@ func ReferQueryOrder(c echo.Context) (err error) {
 			Assigned: d.Assigned,
 			Export:   d.Export,
 			IDC:      d.IDC,
-			Source:   d.Source,
 			QueryPer: state,
 			Realname: u.RealName,
 			ExDate:   time.Now().Format("2006-01-02 15:04"),
@@ -113,23 +84,23 @@ func FetchQueryStatus(c echo.Context) (err error) {
 
 	user, _ := lib.JwtParse(c)
 
-	var d modal.CoreQueryOrder
+	var d model.CoreQueryOrder
 
-	modal.DB().Where("username =?", user).Last(&d)
+	model.DB().Where("username =?", user).Last(&d)
 
-	return c.JSON(http.StatusOK, map[string]interface{}{"status": d.QueryPer, "export": modal.GloOther.Export})
+	return c.JSON(http.StatusOK, map[string]interface{}{"status": d.QueryPer, "export": model.GloOther.Export, "idc": d.IDC})
 }
+
 
 func FetchQueryDatabaseInfo(c echo.Context) (err error) {
 	user, _ := lib.JwtParse(c)
-	var d modal.CoreQueryOrder
-	var u modal.CoreDataSource
-	var sign modal.CoreGrained
-	var ass modal.PermissionList
+	var d model.CoreQueryOrder
+	var u model.CoreDataSource
+	var sign model.CoreGrained
+	var ass model.PermissionList
+	model.DB().Where("username =?", user).Last(&d)
 
-	modal.DB().Where("username =?", user).Last(&d)
-
-	modal.DB().Where("username =?", user).First(&sign)
+	model.DB().Where("username =?", user).First(&sign)
 
 	if err := json.Unmarshal(sign.Permissions, &ass); err != nil {
 		c.Logger().Error(err.Error())
@@ -148,7 +119,13 @@ func FetchQueryDatabaseInfo(c echo.Context) (err error) {
 
 		var baselist []map[string]interface{}
 
-		modal.DB().Where("source =?", d.Source).First(&u)
+		source := new(queryOrder)
+		if err = c.Bind(source); err != nil {
+			c.Logger().Error(err.Error())
+			return c.JSON(http.StatusInternalServerError, "")
+		}
+
+		model.DB().Where("source =?", source.Source).First(&u)
 
 		ps := lib.Decrypt(u.Password)
 
@@ -173,8 +150,8 @@ func FetchQueryDatabaseInfo(c echo.Context) (err error) {
 			dc = append(dc, dataBase)
 		}
 
-		if len(modal.GloOther.ExcludeDbList) > 0 {
-			mid = lib.Intersect(dc, modal.GloOther.ExcludeDbList)
+		if len(model.GloOther.ExcludeDbList) > 0 {
+			mid = lib.Intersect(dc, model.GloOther.ExcludeDbList)
 			dc = lib.NonIntersect(mid, dc)
 		}
 
@@ -186,7 +163,7 @@ func FetchQueryDatabaseInfo(c echo.Context) (err error) {
 		var info [] map[string]interface{}
 
 		info = append(info, map[string]interface{}{
-			"title":    d.Source,
+			"title":    source.Source,
 			"expand":   "true",
 			"children": baselist,
 		})
@@ -201,9 +178,11 @@ func FetchQueryDatabaseInfo(c echo.Context) (err error) {
 func FetchQueryTableInfo(c echo.Context) (err error) {
 	user, _ := lib.JwtParse(c)
 	t := c.Param("t")
-	var d modal.CoreQueryOrder
-	var u modal.CoreDataSource
-	modal.DB().Where("username =?", user).Last(&d)
+	source := c.Param("source")
+	var d model.CoreQueryOrder
+	var u model.CoreDataSource
+	model.DB().Where("username =?", user).Last(&d)
+
 	if d.QueryPer == 1 {
 
 		var table string
@@ -212,7 +191,7 @@ func FetchQueryTableInfo(c echo.Context) (err error) {
 
 		var tablelist []map[string]interface{}
 
-		modal.DB().Where("source =?", d.Source).First(&u)
+		model.DB().Where("source =?", source).First(&u)
 
 		ps := lib.Decrypt(u.Password)
 
@@ -240,19 +219,20 @@ func FetchQueryTableInfo(c echo.Context) (err error) {
 		return c.JSON(http.StatusOK, map[string]interface{}{"table": tablelist, "highlight": highlist})
 
 	} else {
-		return c.JSON(http.StatusNonAuthoritativeInfo, "没有查询权限！")
+		return c.JSON(http.StatusOK, 0)
 	}
 }
 
 func FetchQueryTableStruct(c echo.Context) (err error) {
 	t := c.Param("table")
 	b := c.Param("base")
+	source := c.Param("source")
 	user, _ := lib.JwtParse(c)
-	var d modal.CoreQueryOrder
-	var u modal.CoreDataSource
-	var f []FieldInfo
-	modal.DB().Where("username =?", user).Last(&d)
-	modal.DB().Where("source =?", d.Source).First(&u)
+	var d model.CoreQueryOrder
+	var u model.CoreDataSource
+	var f []ser.FieldInfo
+	model.DB().Where("username =?", user).Last(&d)
+	model.DB().Where("source =?", source).First(&u)
 	ps := lib.Decrypt(u.Password)
 
 	db, e := gorm.Open("mysql", fmt.Sprintf("%s:%s@(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local", u.Username, ps, u.IP, u.Port, b))
@@ -271,77 +251,62 @@ func FetchQueryTableStruct(c echo.Context) (err error) {
 
 func FetchQueryResults(c echo.Context) (err error) {
 
-	req := new(modal.Queryresults)
+	req := new(model.Queryresults)
 
 	if err = c.Bind(req); err != nil {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusOK, err.Error())
 	}
 
-	var d modal.CoreQueryOrder
+	var d model.CoreQueryOrder
 
-	var u modal.CoreDataSource
-
-	sts := false
+	var u model.CoreDataSource
 
 	user, _ := lib.JwtParse(c)
 
-	modal.DB().Where("username =? AND query_per =?", user, 1).Last(&d)
+	model.DB().Where("username =? AND query_per =?", user, 1).Last(&d)
 
 	if lib.TimeDifference(d.ExDate) {
-		modal.DB().Model(modal.CoreQueryOrder{}).Update(&modal.CoreQueryOrder{QueryPer: 3})
-		sts = true
+		model.DB().Model(model.CoreQueryOrder{}).Where("username =?", user).Update(&model.CoreQueryOrder{QueryPer: 3})
+		return c.JSON(http.StatusOK, map[string]interface{}{"status": true})
 	}
+	model.DB().Where("source =?", req.Source).First(&u)
 
-	modal.DB().Where("source =?", d.Source).First(&u)
+	// todo 需自行实现查询SQL LIMIT限制
 
-	//todo 需自行实现查询SQL LIMIT限制
-	// r.InsulateWordList 为脱敏字段slice 需自行实现脱敏功能
-	t1 := time.Now()
-	data, err := lib.QueryMethod(&u, req, r.InsulateWordList)
-	queryTime := int(time.Since(t1).Seconds() * 1000)
-
-	go func(w string, s string) {
-		modal.DB().Create(&modal.CoreQueryRecord{SQL: s, WorkId: w})
-	}(d.WorkId, req.Sql)
-
-	if err != nil {
-		c.Logger().Error(err.Error())
-		return c.JSON(http.StatusOK, err.Error())
-	}
-	return c.JSON(http.StatusOK, map[string]interface{}{"title": data.Field, "data": data.Data, "status": sts, "time": queryTime})
+	return c.JSON(http.StatusOK, map[string]interface{}{"title": data.Field, "data": data.Data, "status": false, "time": queryTime})
 }
 
 func AgreedQueryOrder(c echo.Context) (err error) {
 	u := new(queryOrder)
-	var s modal.CoreQueryOrder
+	var s model.CoreQueryOrder
 	if err = c.Bind(u); err != nil {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusOK, err.Error())
 	}
 
-	if modal.DB().Where("work_id=? AND query_per=?", u.WorkId, 2).Last(&s).RecordNotFound() {
+	if model.DB().Where("work_id=? AND query_per=?", u.WorkId, 2).Last(&s).RecordNotFound() {
 		return c.JSON(http.StatusOK, "工单状态已变更！")
 	}
 
-	modal.DB().Model(modal.CoreQueryOrder{}).Where("work_id =?", u.WorkId).Update(map[string]interface{}{"query_per": 1, "ex_date": time.Now().Format("2006-01-02 15:04")})
+	model.DB().Model(model.CoreQueryOrder{}).Where("work_id =?", u.WorkId).Update(map[string]interface{}{"query_per": 1, "ex_date": time.Now().Format("2006-01-02 15:04")})
 	lib.MessagePush(c, u.WorkId, 7, "")
 	return c.JSON(http.StatusOK, "该次工单查询已同意！")
 }
 
 func DisAgreedQueryOrder(c echo.Context) (err error) {
 	u := new(queryOrder)
-	var s modal.CoreQueryOrder
+	var s model.CoreQueryOrder
 	if err = c.Bind(u); err != nil {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusOK, err.Error())
 	}
 
-	if modal.DB().Where("work_id=? AND query_per=?", u.WorkId, 2).Last(&s).RecordNotFound() {
+	if model.DB().Where("work_id=? AND query_per=?", u.WorkId, 2).Last(&s).RecordNotFound() {
 		return c.JSON(http.StatusOK, "工单状态已变更！")
 	}
 
-	modal.DB().Model(modal.CoreQueryOrder{}).Where("work_id =?", u.WorkId).Update(map[string]interface{}{"query_per": 0})
+	model.DB().Model(model.CoreQueryOrder{}).Where("work_id =?", u.WorkId).Update(map[string]interface{}{"query_per": 0})
 	lib.MessagePush(c, u.WorkId, 8, "")
 	return c.JSON(http.StatusOK, "该次工单查询已驳回！")
 }
@@ -352,12 +317,12 @@ func DelQueryOrder(c echo.Context) (err error) {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusOK, err.Error())
 	}
-	var d modal.CoreQueryOrder
+	var d model.CoreQueryOrder
 
-	tx := modal.DB().Begin()
+	tx := model.DB().Begin()
 	for _, i := range req.WorkId {
-		modal.DB().Where("work_id =?", i).Delete(&modal.CoreQueryOrder{})
-		modal.DB().Where("work_id =?", d.WorkId).Delete(&modal.CoreQueryRecord{})
+		model.DB().Where("work_id =?", i).Delete(&model.CoreQueryOrder{})
+		model.DB().Where("work_id =?", d.WorkId).Delete(&model.CoreQueryRecord{})
 	}
 	tx.Commit()
 
@@ -366,23 +331,23 @@ func DelQueryOrder(c echo.Context) (err error) {
 
 func UndoQueryOrder(c echo.Context) (err error) {
 	user, _ := lib.JwtParse(c)
-	modal.DB().Model(modal.CoreQueryOrder{}).Where("username =?", user).Update(map[string]interface{}{"query_per": 3})
+	model.DB().Model(model.CoreQueryOrder{}).Where("username =?", user).Update(map[string]interface{}{"query_per": 3})
 	return c.JSON(http.StatusOK, "查询已终止！")
 }
 
 func SuperUndoQueryOrder(c echo.Context) (err error) {
 	s := new(queryOrder)
-	var u modal.CoreQueryOrder
+	var u model.CoreQueryOrder
 	if err = c.Bind(s); err != nil {
 		c.Logger().Error(err.Error())
 		return c.JSON(http.StatusOK, err.Error())
 	}
 
-	if !modal.DB().Where("work_id=? AND query_per=?", s.WorkId, 2).Last(&u).RecordNotFound() {
+	if !model.DB().Where("work_id=? AND query_per=?", s.WorkId, 2).Last(&u).RecordNotFound() {
 		return c.JSON(http.StatusOK, "工单状态已变更！")
 	}
 
-	modal.DB().Model(modal.CoreQueryOrder{}).Where("work_id =?", s.WorkId).Update(map[string]interface{}{"query_per": 3})
+	model.DB().Model(model.CoreQueryOrder{}).Where("work_id =?", s.WorkId).Update(map[string]interface{}{"query_per": 3})
 	return c.JSON(http.StatusOK, "查询已终止！")
 }
 
@@ -396,7 +361,7 @@ func FetchQueryOrder(c echo.Context) (err error) {
 	start, end := lib.Paging(u.Page, 20)
 	var pg int
 
-	var order []modal.CoreQueryOrder
+	var order []model.CoreQueryOrder
 
 	whereField := "username LIKE ? "
 
@@ -404,18 +369,18 @@ func FetchQueryOrder(c echo.Context) (err error) {
 
 	if u.Find.Valve {
 		if u.Find.Picker[0] == "" {
-			modal.DB().Where(whereField, "%"+fmt.Sprintf("%s", u.Find.User)+"%").Order("id desc").Offset(start).Limit(end).Find(&order)
-			modal.DB().Model(&modal.CoreQueryOrder{}).Where(whereField, "%"+fmt.Sprintf("%s", u.Find.User)+"%").Count(&pg)
+			model.DB().Where(whereField, "%"+fmt.Sprintf("%s", u.Find.User)+"%").Order("id desc").Offset(start).Limit(end).Find(&order)
+			model.DB().Model(&model.CoreQueryOrder{}).Where(whereField, "%"+fmt.Sprintf("%s", u.Find.User)+"%").Count(&pg)
 		} else {
-			modal.DB().Where(whereField+dateField, "%"+fmt.Sprintf("%s", u.Find.User)+"%", u.Find.Picker[0], u.Find.Picker[1]).Order("id desc").Offset(start).Limit(end).Find(&order)
-			modal.DB().Model(&modal.CoreQueryOrder{}).Where(whereField+dateField, "%"+fmt.Sprintf("%s", u.Find.User)+"%", u.Find.Picker[0], u.Find.Picker[1]).Count(&pg)
+			model.DB().Where(whereField+dateField, "%"+fmt.Sprintf("%s", u.Find.User)+"%", u.Find.Picker[0], u.Find.Picker[1]).Order("id desc").Offset(start).Limit(end).Find(&order)
+			model.DB().Model(&model.CoreQueryOrder{}).Where(whereField+dateField, "%"+fmt.Sprintf("%s", u.Find.User)+"%", u.Find.Picker[0], u.Find.Picker[1]).Count(&pg)
 		}
 	} else {
-		modal.DB().Order("id desc").Offset(start).Limit(end).Find(&order)
-		modal.DB().Model(&modal.CoreQueryOrder{}).Count(&pg)
+		model.DB().Order("id desc").Offset(start).Limit(end).Find(&order)
+		model.DB().Model(&model.CoreQueryOrder{}).Count(&pg)
 	}
 	return c.JSON(http.StatusOK, struct {
-		Data []modal.CoreQueryOrder `json:"data"`
+		Data []model.CoreQueryOrder `json:"data"`
 		Page int                    `json:"page"`
 	}{
 		order,
@@ -424,6 +389,6 @@ func FetchQueryOrder(c echo.Context) (err error) {
 }
 
 func QueryQuickCancel(c echo.Context) (err error) {
-	modal.DB().Model(modal.CoreQueryOrder{}).Updates(&modal.CoreQueryOrder{QueryPer: 3})
+	model.DB().Model(model.CoreQueryOrder{}).Updates(&model.CoreQueryOrder{QueryPer: 3})
 	return c.JSON(http.StatusOK, "所有查询已取消！")
 }

@@ -14,8 +14,8 @@
 package service
 
 import (
-	"Yearning-go/src/modal"
-	_ "Yearning-go/src/modal"
+	"Yearning-go/src/model"
+	_ "Yearning-go/src/model"
 	"Yearning-go/src/parser"
 	"Yearning-go/src/router"
 	"encoding/json"
@@ -25,12 +25,12 @@ import (
 )
 
 func StartYearning(port string, host string) {
-	modal.DB().First(&modal.GloPer)
-	modal.Host = host
-	json.Unmarshal(modal.GloPer.Message, &modal.GloMessage)
-	json.Unmarshal(modal.GloPer.Ldap, &modal.GloLdap)
-	json.Unmarshal(modal.GloPer.Other, &modal.GloOther)
-	json.Unmarshal(modal.GloPer.AuditRole, &parser.FetchAuditRole)
+	model.DB().First(&model.GloPer)
+	model.Host = host
+	json.Unmarshal(model.GloPer.Message, &model.GloMessage)
+	json.Unmarshal(model.GloPer.Ldap, &model.GloLdap)
+	json.Unmarshal(model.GloPer.Other, &model.GloOther)
+	json.Unmarshal(model.GloPer.AuditRole, &parser.FetchAuditRole)
 	e := echo.New()
 	e.Static("/", "dist")
 	//e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -42,5 +42,6 @@ func StartYearning(port string, host string) {
 		Level: 5,
 	}))
 	router.AddRouter(e)
+	e.Logger.SetLevel(1)
 	e.Logger.Fatal(e.Start(fmt.Sprintf(":%s", port)))
 }

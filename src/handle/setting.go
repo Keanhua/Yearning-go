@@ -15,7 +15,7 @@ package handle
 
 import (
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	ser "Yearning-go/src/parser"
 	"encoding/json"
 	"github.com/labstack/echo/v4"
@@ -23,25 +23,25 @@ import (
 )
 
 type set struct {
-	Ldap    modal.Ldap
-	Message modal.Message
-	Other   modal.Other
+	Ldap    model.Ldap
+	Message model.Message
+	Other   model.Other
 	Juno    ser.AuditRole
 }
 
 type mt struct {
-	Mail modal.Message
+	Mail model.Message
 }
 
 type lt struct {
-	Ldap modal.Ldap
+	Ldap model.Ldap
 }
 
 func SuperFetchSetting(c echo.Context) (err error) {
 
-	var k modal.CoreGlobalConfiguration
+	var k model.CoreGlobalConfiguration
 
-	modal.DB().First(&k)
+	model.DB().First(&k)
 
 	return c.JSON(http.StatusOK, k)
 }
@@ -60,10 +60,10 @@ func SuperSaveSetting(c echo.Context) (err error) {
 	other, _ := json.Marshal(u.Other)
 	message, _ := json.Marshal(u.Message)
 	ldap, _ := json.Marshal(u.Ldap)
-	modal.DB().Model(modal.CoreGlobalConfiguration{}).Where("authorization =?", "global").Updates(&modal.CoreGlobalConfiguration{Other: other, Message: message, Ldap: ldap})
-	modal.GloOther = u.Other
-	modal.GloLdap = u.Ldap
-	modal.GloMessage = u.Message
+	model.DB().Model(model.CoreGlobalConfiguration{}).Where("authorization =?", "global").Updates(&model.CoreGlobalConfiguration{Other: other, Message: message, Ldap: ldap})
+	model.GloOther = u.Other
+	model.GloLdap = u.Ldap
+	model.GloMessage = u.Message
 
 	return c.JSON(http.StatusOK, "配置信息已保存！")
 }
@@ -121,7 +121,7 @@ func SuperSaveRoles(c echo.Context) (err error)  {
 
 	ser.FetchAuditRole = u.Juno
 	audit, err := json.Marshal(u.Juno)
-	modal.DB().Model(modal.CoreGlobalConfiguration{}).Where("authorization =?", "global").Updates(&modal.CoreGlobalConfiguration{AuditRole: audit})
+	model.DB().Model(model.CoreGlobalConfiguration{}).Where("authorization =?", "global").Updates(&model.CoreGlobalConfiguration{AuditRole: audit})
 
 	return c.JSON(http.StatusOK, "配置信息已保存！")
 }

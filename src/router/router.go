@@ -16,7 +16,7 @@ package router
 import (
 	"Yearning-go/src/handle"
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"net/http"
@@ -66,7 +66,7 @@ func AddRouter(e *echo.Echo) {
 	e.GET("/fetch", handle.UserReqSwitch)
 	e.POST("/ldap", handle.UserLdapLogin)
 
-	r := e.Group("/api/v2", middleware.JWT([]byte(modal.JWT)))
+	r := e.Group("/api/v2", middleware.JWT([]byte(model.JWT)))
 	r.POST("/dash/initMenu", handle.DashInit)
 	r.GET("/dash/pie", handle.DashPie)
 	r.GET("/dash/axis", handle.DashAxis)
@@ -78,7 +78,7 @@ func AddRouter(e *echo.Echo) {
 	r.POST("/user/password_reset", handle.ChangePassword)
 	r.POST("/user/mail_reset", handle.ChangeMail)
 	r.PUT("/user/order", handle.GeneralFetchMyOrder)
-
+	r.GET("/fetch/sql", handle.GeneralFetchSQLInfo)
 	r.GET("/fetch/idc", handle.GeneralIDC)
 	r.GET("/fetch/source/:idc/:xxx", handle.GeneralSource)
 	r.GET("/fetch/base/:source", handle.GeneralBase)
@@ -91,9 +91,9 @@ func AddRouter(e *echo.Echo) {
 	r.GET("/fetch/undo", handle.GeneralFetchUndo)
 	r.PUT("/query/status", handle.FetchQueryStatus)
 	r.POST("/query/refer", handle.ReferQueryOrder)
-	r.GET("/query/fetchbase", handle.FetchQueryDatabaseInfo)
-	r.GET("/query/fetchtable/:t", handle.FetchQueryTableInfo)
-	r.GET("/query/tableinfo/:base/:table", handle.FetchQueryTableStruct)
+	r.PUT("/query/fetchbase", handle.FetchQueryDatabaseInfo)
+	r.GET("/query/fetchtable/:t/:source", handle.FetchQueryTableInfo)
+	r.GET("/query/tableinfo/:base/:table/:source", handle.FetchQueryTableStruct)
 	r.POST("/query", handle.FetchQueryResults)
 	r.DELETE("/query/undo", handle.UndoQueryOrder)
 	r.PUT("/query/beauty", handle.GeneralQueryBeauty)
@@ -147,5 +147,5 @@ func AddRouter(e *echo.Echo) {
 	rules := r.Group("/rules", SuperManageGroup)
 	rules.GET("", handle.FetchGroupOrder)
 	rules.PUT("/reject", handle.RejectGroupOrder)
-	rules.PUT("/allow", handle.AllowroupOrder)
+	rules.PUT("/allow", handle.AllowGroupOrder)
 }

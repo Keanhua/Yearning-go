@@ -15,7 +15,7 @@ package handle
 
 import (
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	"fmt"
 	"github.com/labstack/echo/v4"
 	"net/http"
@@ -31,7 +31,7 @@ func FetchRecord(c echo.Context) (err error) {
 
 	var pg int
 
-	var order []modal.CoreSqlOrder
+	var order []model.CoreSqlOrder
 
 	queryField := "work_id, username, text, execute_time, real_name, executor, `data_base`, `table`,assigned,id_c,source, `status`"
 	whereField := "`status` in (?) AND text LIKE ? "
@@ -39,25 +39,25 @@ func FetchRecord(c echo.Context) (err error) {
 
 	if u.Find.Valve {
 		if u.Find.Picker[0] == "" {
-			modal.DB().Select(queryField).Where(whereField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Order("id desc").Offset(start).Limit(end).Find(&order)
-			modal.DB().Model(&modal.CoreSqlOrder{}).Where(whereField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Count(&pg)
+			model.DB().Select(queryField).Where(whereField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Order("id desc").Offset(start).Limit(end).Find(&order)
+			model.DB().Model(&model.CoreSqlOrder{}).Where(whereField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Count(&pg)
 		} else {
-			modal.DB().Select(queryField).
+			model.DB().Select(queryField).
 				Where(whereField+dateField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Order("id desc").Offset(start).Limit(end).Find(&order)
-			modal.DB().Model(&modal.CoreSqlOrder{}).Where(whereField+dateField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Count(&pg)
+			model.DB().Model(&model.CoreSqlOrder{}).Where(whereField+dateField, []int{1, 4}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Count(&pg)
 		}
 	} else {
-		modal.DB().Select(queryField).Where("`status` in (?)", []int{1, 4}).Order("id desc").Offset(start).Limit(end).Find(&order)
-		modal.DB().Model(&modal.CoreSqlOrder{}).Where("`status` in (?)", []int{1, 4}).Count(&pg)
+		model.DB().Select(queryField).Where("`status` in (?)", []int{1, 4}).Order("id desc").Offset(start).Limit(end).Find(&order)
+		model.DB().Model(&model.CoreSqlOrder{}).Where("`status` in (?)", []int{1, 4}).Count(&pg)
 	}
 	return c.JSON(http.StatusOK, struct {
-		Data  []modal.CoreSqlOrder `json:"data"`
+		Data  []model.CoreSqlOrder `json:"data"`
 		Page  int                  `json:"page"`
 		Multi bool                 `json:"multi"`
 	}{
 		order,
 		pg,
-		modal.GloOther.Multi,
+		model.GloOther.Multi,
 	})
 }
 
@@ -72,25 +72,25 @@ func FetchQueryRecord(c echo.Context) (err error) {
 
 	var pg int
 
-	var order []modal.CoreQueryOrder
+	var order []model.CoreQueryOrder
 
 	whereField := "`query_per` in (?) AND work_id LIKE ? "
 	dateField := " AND date >= ? AND date <= ?"
 
 	if u.Find.Valve {
 		if u.Find.Picker[0] == "" {
-			modal.DB().Where(whereField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Order("id desc").Offset(start).Limit(end).Find(&order)
-			modal.DB().Model(&modal.CoreQueryOrder{}).Where(whereField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Count(&pg)
+			model.DB().Where(whereField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Order("id desc").Offset(start).Limit(end).Find(&order)
+			model.DB().Model(&model.CoreQueryOrder{}).Where(whereField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%").Count(&pg)
 		} else {
-			modal.DB().Where(whereField+dateField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Order("id desc").Offset(start).Limit(end).Find(&order)
-			modal.DB().Model(&modal.CoreQueryOrder{}).Where(whereField+dateField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Count(&pg)
+			model.DB().Where(whereField+dateField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Order("id desc").Offset(start).Limit(end).Find(&order)
+			model.DB().Model(&model.CoreQueryOrder{}).Where(whereField+dateField, []int{1, 3}, "%"+fmt.Sprintf("%s", u.Find.Text)+"%", u.Find.Picker[0], u.Find.Picker[1]).Count(&pg)
 		}
 	} else {
-		modal.DB().Where("`query_per` in (?)", []int{1, 3}).Order("id desc").Offset(start).Limit(end).Find(&order)
-		modal.DB().Model(&modal.CoreQueryOrder{}).Where("`query_per` in (?)", []int{1, 3}).Count(&pg)
+		model.DB().Where("`query_per` in (?)", []int{1, 3}).Order("id desc").Offset(start).Limit(end).Find(&order)
+		model.DB().Model(&model.CoreQueryOrder{}).Where("`query_per` in (?)", []int{1, 3}).Count(&pg)
 	}
 	return c.JSON(http.StatusOK, struct {
-		Data []modal.CoreQueryOrder `json:"data"`
+		Data []model.CoreQueryOrder `json:"data"`
 		Page int                    `json:"page"`
 	}{
 		order,
@@ -106,9 +106,9 @@ func FetchQueryRecordDetail(c echo.Context) (err error) {
 		return
 	}
 	start, end := lib.Paging(u.Page,20)
-	var detail []modal.CoreQueryRecord
+	var detail []model.CoreQueryRecord
 	var count int
-	modal.DB().Where("work_id =?", u.WorkId).Offset(start).Limit(end).Find(&detail)
-	modal.DB().Model(&modal.CoreQueryRecord{}).Where("work_id =?", u.WorkId).Count(&count)
+	model.DB().Where("work_id =?", u.WorkId).Offset(start).Limit(end).Find(&detail)
+	model.DB().Model(&model.CoreQueryRecord{}).Where("work_id =?", u.WorkId).Count(&count)
 	return c.JSON(http.StatusOK, detail)
 }

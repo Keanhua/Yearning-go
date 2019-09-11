@@ -15,7 +15,7 @@ package handle
 
 import (
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"time"
@@ -35,8 +35,8 @@ type ddl struct {
 }
 
 type ddlrefer struct {
-	DDL  ddl
-	SQL  string
+	DDL ddl
+	SQL string
 	Ty  uint
 }
 
@@ -48,12 +48,12 @@ func SQLReferToOrder(c echo.Context) (err error) {
 		return c.JSON(http.StatusInternalServerError, "")
 	}
 
-	var account modal.CoreAccount
+	var account model.CoreAccount
 
-	modal.DB().Select("real_name").Where("username =?",user).First(&account)
+	model.DB().Select("real_name").Where("username =?", user).First(&account)
 
 	w := lib.GenWorkid()
-	modal.DB().Create(&modal.CoreSqlOrder{
+	model.DB().Create(&model.CoreSqlOrder{
 		WorkId:   w,
 		Username: user,
 		Status:   2,
@@ -69,7 +69,7 @@ func SQLReferToOrder(c echo.Context) (err error) {
 		Assigned: u.DDL.Assigned,
 		Delay:    u.DDL.Delay,
 		RealName: account.RealName,
-		Time: time.Now().Format("2006-01-02"),
+		Time:     time.Now().Format("2006-01-02"),
 	})
 	lib.MessagePush(c, w, 2, "")
 

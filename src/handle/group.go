@@ -15,7 +15,7 @@ package handle
 
 import (
 	"Yearning-go/src/lib"
-	"Yearning-go/src/modal"
+	"Yearning-go/src/model"
 	"encoding/json"
 	"fmt"
 	"github.com/labstack/echo/v4"
@@ -23,21 +23,21 @@ import (
 )
 
 type s struct {
-	Data   []modal.CoreGrained    `json:"data"`
+	Data   []model.CoreGrained    `json:"data"`
 	Page   int                    `json:"page"`
-	Source []modal.CoreDataSource `json:"source"`
-	Audit  []modal.CoreAccount    `json:"audit"`
-	Query  []modal.CoreDataSource `json:"query"`
+	Source []model.CoreDataSource `json:"source"`
+	Audit  []model.CoreAccount    `json:"audit"`
+	Query  []model.CoreDataSource `json:"query"`
 }
 
 type k struct {
 	Username   string
-	Permission modal.PermissionList
+	Permission model.PermissionList
 }
 
 type m struct {
 	Username   []string
-	Permission modal.PermissionList
+	Permission model.PermissionList
 }
 
 func SuperGroup(c echo.Context) (err error) {
@@ -45,10 +45,10 @@ func SuperGroup(c echo.Context) (err error) {
 	if user == "admin" {
 		var f fetchdb
 		var pg int
-		var g []modal.CoreGrained
-		var source []modal.CoreDataSource
-		var query []modal.CoreDataSource
-		var u []modal.CoreAccount
+		var g []model.CoreGrained
+		var source []model.CoreDataSource
+		var query []model.CoreDataSource
+		var u []model.CoreAccount
 		con := c.QueryParam("con")
 		start, end := lib.Paging(c.QueryParam("page"), 10)
 
@@ -56,16 +56,16 @@ func SuperGroup(c echo.Context) (err error) {
 			c.Logger().Error(err.Error())
 		}
 		if f.Valve {
-			modal.DB().Where("username LIKE ?","%"+fmt.Sprintf("%s", f.Username)+"%").Offset(start).Limit(end).Find(&g)
-			modal.DB().Where("username LIKE ?","%"+fmt.Sprintf("%s", f.Username)+"%").Model(modal.CoreGrained{}).Count(&pg)
+			model.DB().Where("username LIKE ?", "%"+fmt.Sprintf("%s", f.Username)+"%").Offset(start).Limit(end).Find(&g)
+			model.DB().Where("username LIKE ?", "%"+fmt.Sprintf("%s", f.Username)+"%").Model(model.CoreGrained{}).Count(&pg)
 		} else {
-			modal.DB().Offset(start).Limit(end).Find(&g)
-			modal.DB().Model(modal.CoreGrained{}).Count(&pg)
+			model.DB().Offset(start).Limit(end).Find(&g)
+			model.DB().Model(model.CoreGrained{}).Count(&pg)
 		}
 
-		modal.DB().Select("source").Where("is_query =?", 0).Find(&source)
-		modal.DB().Select("source").Where("is_query =?", 1).Find(&query)
-		modal.DB().Select("username").Where("rule =?", "admin").Find(&u)
+		model.DB().Select("source").Where("is_query =? or is_query = ?", 0, 2).Find(&source)
+		model.DB().Select("source").Where("is_query =? or is_query = ?", 1, 2).Find(&query)
+		model.DB().Select("username").Where("rule =?", "admin").Find(&u)
 		return c.JSON(http.StatusOK, s{Data: g, Page: pg, Source: source, Audit: u, Query: query})
 	}
 	return c.JSON(http.StatusForbidden, "非法越权操作！")
@@ -84,7 +84,7 @@ func SuperGroupUpdate(c echo.Context) (err error) {
 			c.Logger().Error(err.Error())
 			return c.JSON(http.StatusInternalServerError, err.Error())
 		}
-		modal.DB().Model(modal.CoreGrained{}).Where("username = ?", u.Username).Update(modal.CoreGrained{Permissions: g})
+		model.DB().Model(model.CoreGrained{}).Where("username = ?", u.Username).Update(model.CoreGrained{Permissions: g})
 		return c.JSON(http.StatusOK, fmt.Sprintf("用户:%s 权限已更新！", u.Username))
 	}
 	return c.JSON(http.StatusForbidden, "非法越权操作！")
@@ -109,7 +109,7 @@ func SuperMGroupUpdate(c echo.Context) (err error) {
 		}
 
 		for _, i := range u.Username {
-			modal.DB().Model(modal.CoreGrained{}).Where("username = ?", i).Update(modal.CoreGrained{Permissions: g})
+			model.DB().Model(model.CoreGrained{}).Where("username = ?", i).Update(model.CoreGrained{Permissions: g})
 		}
 
 		return c.JSON(http.StatusOK, "用户权限已更新！")
@@ -119,7 +119,7 @@ func SuperMGroupUpdate(c echo.Context) (err error) {
 
 func SuperDeleteGroup(c echo.Context) (err error) {
 	g := c.Param("clear")
-	u, err := json.Marshal(modal.InitPer)
-	modal.DB().Model(modal.CoreGrained{}).Where("username =?", g).Update(modal.CoreGrained{Permissions: u})
+	u, err := json.Marshal(model.InitPer)
+	model.DB().Model(model.CoreGrained{}).Where("username =?", g).Update(model.CoreGrained{Permissions: u})
 	return c.JSON(http.StatusOK, fmt.Sprintf("用户:%s 权限已清空！", g))
 }
